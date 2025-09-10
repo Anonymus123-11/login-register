@@ -17,5 +17,8 @@
     "url": "https://github.com/Anonymus123-11/login-register/issues"
   },
   "homepage": "https://github.com/Anonymus123-11/login-register#readme",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
 }
