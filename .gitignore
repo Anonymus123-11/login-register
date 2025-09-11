@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+
+# Visual Studio folder
+.vs/
+
+ # Environment variables
+ .env
+
+ # Production
+ /build
+
+ # Misc
+ npm-debug.log*
+ yarn-debug.log*
+ yarn-error.log*
