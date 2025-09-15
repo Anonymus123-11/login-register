@@ -1,3 +1,5 @@
+
+require("dotenv").config(); 
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -27,7 +29,10 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API for user authentication with JWT",
     },
-    servers: [{ url: "https://login-register-dtsi.onrender.com" }],
+    servers: [
+  { url: process.env.PUBLIC_BASE_URL || "http://localhost:" + (process.env.PORT || 5000) }
+],
+
     components: {
       securitySchemes: {
         bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
