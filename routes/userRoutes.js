@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
-const sendOtpEmail = require("../utils/sendEmail"); // gửi email OTP bằng SendGrid
+const sendOtpEmail = require("../utils/sendEmail"); 
 
 const router = express.Router();
 
