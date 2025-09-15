@@ -68,7 +68,7 @@ router.post("/register", async (req, res) => {
  * @swagger
  * /api/users/login:
  *   post:
- *     summary: Login user and get JWT token
+ *     summary: Login user and get access + refresh token
  *     tags: [Users]
  *     requestBody:
  *       required: true
@@ -88,7 +88,7 @@ router.post("/register", async (req, res) => {
  *                 example: password123
  *     responses:
  *       200:
- *         description: Login successful, returns JWT token
+ *         description: Login successful, returns tokens
  *       400:
  *         description: Invalid credentials
  */
@@ -103,8 +103,66 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-    const token = jwt.sign({ user: { id: user.id } }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.json({ token });
+    const accessToken = jwt.sign(
+      { user: { id: user.id } }, process.env.JWT_SECRET, { expiresIn: "1h" }
+    );
+
+    const refreshToken = jwt.sign(
+      { user: { id: user.id } }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" }
+    );
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.json({ accessToken, refreshToken });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/refresh:
+ *   post:
+ *     summary: Refresh access token using refresh token
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: New access token issued
+ *       401:
+ *         description: Invalid refresh token
+ */
+router.post("/refresh", async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) return res.status(401).json({ message: "No refresh token provided" });
+
+  try {
+    const user = await User.findOne({ refreshToken });
+    if (!user) return res.status(403).json({ message: "Invalid refresh token" });
+
+    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
+      if (err) return res.status(403).json({ message: "Invalid refresh token" });
+
+      const newAccessToken = jwt.sign(
+        { user: { id: user.id } },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+
+      res.json({ accessToken: newAccessToken });
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
