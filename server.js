@@ -27,7 +27,7 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API for user authentication with JWT",
     },
-    servers: [{ url: "https://login-register-dtsi.onrender.com" }],
+    servers: [{ url: "http://localhost:5000" }],
     components: {
       securitySchemes: {
         bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
