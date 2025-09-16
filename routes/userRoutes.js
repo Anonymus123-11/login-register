@@ -88,6 +88,7 @@ router.post("/register", async (req, res) => {
  *         description: Invalid credentials
  */
 // LOGIN
+// LOGIN
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ message: "Please provide email and password" });
@@ -100,11 +101,25 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-    // Payload JWT tối giản
-    const accessToken = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    // Tạo access token ngắn hạn
+    const accessToken = jwt.sign(
+      { sub: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" } // access token ngắn hạn
+    );
+
+    // Tạo refresh token dài hạn
+    const refreshToken = jwt.sign(
+      { sub: user.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" } // refresh token dài hạn
+    );
+
+    // Lưu refresh token vào DB
+    user.refreshToken = refreshToken;
+    await user.save();
 
     // Tạo bản user "sạch"
-    // Nếu bạn đã set toJSON transform trong model thì user.toJSON() sẽ tự ẩn field nhạy cảm.
     const safeUser = user.toJSON ? user.toJSON() : {
       id: user.id,
       username: user.username,
@@ -114,20 +129,20 @@ router.post("/login", async (req, res) => {
       updatedAt: user.updatedAt,
     };
 
-    // Double-check: xoá mọi field nhạy cảm nếu còn sót
+    // Xoá các field nhạy cảm
     delete safeUser.password;
     delete safeUser.emailOTPHash;
     delete safeUser.emailOTPExpiresAt;
     delete safeUser.resetOTPHash;
     delete safeUser.resetOTPExpiresAt;
-    delete safeUser.refreshToken;
 
-    return res.json({ accessToken, user: safeUser });
+    return res.json({ accessToken, refreshToken, user: safeUser });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
+
 
 
 /**

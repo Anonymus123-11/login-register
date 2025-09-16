@@ -1,4 +1,3 @@
-
 require("dotenv").config(); 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -6,7 +5,6 @@ const cors = require("cors");
 const userRoutes = require("./routes/userRoutes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsDoc = require("swagger-jsdoc");
-require("dotenv").config();
 
 const app = express();
 
@@ -20,6 +18,14 @@ app.get("/", (req, res) => res.send("Welcome"));
 // Routes
 app.use("/api/users", userRoutes);
 
+// 👉 Chọn base URL theo môi trường
+let baseUrl;
+if (process.env.NODE_ENV === "production") {
+  baseUrl = process.env.RENDER_PUBLIC_BASE_URL;   // Render
+} else {
+  baseUrl = process.env.LOCAL_PUBLIC_BASE_URL;    // Local
+}
+
 // Swagger options
 const swaggerOptions = {
   definition: {
@@ -29,17 +35,14 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API for user authentication with JWT",
     },
-    servers: [
-  { url: process.env.PUBLIC_BASE_URL || "http://localhost:" + (process.env.PORT || 5000) }
-],
-
+    servers: [{ url: baseUrl }],
     components: {
       securitySchemes: {
         bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
       },
     },
   },
-  apis: ["./routes/*.js"], // 🔑 Use annotation in route files
+  apis: ["./routes/*.js"], // 🔑 Sử dụng annotation trong routes
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
