@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const otpGenerator = require("otp-generator");
 const User = require("../models/User");
+const { sendOtpEmail } = require("../utils/mailer");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -26,7 +27,7 @@ const transporter = nodemailer.createTransport({
  * @swagger
  * /api/users/register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new user and send OTP to email
  *     tags: [Users]
  *     requestBody:
  *       required: true
@@ -36,37 +37,140 @@ const transporter = nodemailer.createTransport({
  *             type: object
  *             required:
  *               - username
+ *               - email
  *               - password
  *             properties:
  *               username:
  *                 type: string
  *                 example: testuser
+ *               email:
+ *                 type: string
+ *                 example: test@example.com
  *               password:
  *                 type: string
  *                 example: password123
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: User registered. OTP sent to email.
  *       400:
- *         description: Missing username or password
+ *         description: Missing fields
  *       409:
- *         description: Username already exists
+ *         description: Username or email already exists
  */
 router.post("/register", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ message: "Please provide username and password" });
+  const { username, email, password } = req.body;
+  if (!username || !email || !password) {
+    return res.status(400).json({ message: "Please provide username, email and password" });
   }
 
   try {
-    const existingUser = await User.findOne({ username });
-    if (existingUser) return res.status(409).json({ message: "Username already exists" });
+    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+    if (existingUser) return res.status(409).json({ message: "Username or email already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword });
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    const newUser = new User({ username, email, password: hashedPassword, isVerified: false, otpCode, otpExpiresAt });
     await newUser.save();
 
-    res.status(201).json({ message: "User registered successfully" });
+    await sendOtpEmail(email, otpCode);
+
+    res.status(201).json({ message: "User registered. Please verify OTP sent to email." });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/verify-otp:
+ *   post:
+ *     summary: Verify user registration with OTP
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *               otp:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Verification successful
+ *       400:
+ *         description: Invalid or expired OTP
+ */
+router.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ message: "Email and OTP are required" });
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Invalid email" });
+    if (user.isVerified) return res.status(200).json({ message: "Already verified" });
+    if (!user.otpCode || !user.otpExpiresAt) return res.status(400).json({ message: "No OTP to verify" });
+    if (user.otpCode !== otp) return res.status(400).json({ message: "Invalid OTP" });
+    if (new Date() > user.otpExpiresAt) return res.status(400).json({ message: "OTP expired" });
+
+    user.isVerified = true;
+    user.otpCode = undefined;
+    user.otpExpiresAt = undefined;
+    await user.save();
+
+    res.json({ message: "Verification successful" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/resend-otp:
+ *   post:
+ *     summary: Resend OTP to user's email
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: OTP resent
+ */
+router.post("/resend-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "User not found" });
+    if (user.isVerified) return res.status(400).json({ message: "User already verified" });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    user.otpCode = otpCode;
+    user.otpExpiresAt = otpExpiresAt;
+    await user.save();
+
+    await sendOtpEmail(email, otpCode);
+    res.json({ message: "OTP resent" });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
@@ -108,6 +212,7 @@ router.post("/login", async (req, res) => {
   try {
     const user = await User.findOne({ username });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    if (!user.isVerified) return res.status(403).json({ message: "Please verify your email before logging in" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
