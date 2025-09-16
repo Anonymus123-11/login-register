@@ -109,13 +109,8 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-    const accessToken = jwt.sign(
-      { user: { id: user.id } }, process.env.JWT_SECRET, { expiresIn: "1h" }
-    );
-
-    const refreshToken = jwt.sign(
-      { user: { id: user.id } }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" }
-    );
+    const accessToken = jwt.sign({ user: { id: user.id } }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const refreshToken = jwt.sign({ user: { id: user.id } }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
 
     user.refreshToken = refreshToken;
     await user.save();
@@ -161,12 +156,7 @@ router.post("/refresh", async (req, res) => {
     jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
       if (err) return res.status(403).json({ message: "Invalid refresh token" });
 
-      const newAccessToken = jwt.sign(
-        { user: { id: user.id } },
-        process.env.JWT_SECRET,
-        { expiresIn: "1h" }
-      );
-
+      const newAccessToken = jwt.sign({ user: { id: user.id } }, process.env.JWT_SECRET, { expiresIn: "1h" });
       res.json({ accessToken: newAccessToken });
     });
   } catch (err) {
@@ -223,11 +213,11 @@ router.get("/protected", authMiddleware, (req, res) => {
  */
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ message: "Vui lòng nhập email" });
+  if (!email) return res.status(400).json({ message: "Please enter your email!" });
 
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "Email không tồn tại" });
+    if (!user) return res.status(404).json({ message: "Email not exist" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -238,10 +228,10 @@ router.post("/forgot-password", async (req, res) => {
 
     await sendOtpEmail(email, otp);
 
-    res.json({ message: "OTP đã gửi vào email của bạn" });
+    res.json({ message: "OTP had been sent to your email!" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server lỗi" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -284,14 +274,14 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   const { email, otp, newPassword } = req.body;
   if (!email || !otp || !newPassword)
-    return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin" });
+    return res.status(400).json({ message: "Please enter all information" });
 
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "Email không tồn tại" });
+    if (!user) return res.status(404).json({ message: "Email not exits" });
 
-    if (user.resetOtp !== otp) return res.status(400).json({ message: "OTP không đúng" });
-    if (user.resetOtpExpiry < new Date()) return res.status(400).json({ message: "OTP đã hết hạn" });
+    if (user.resetOtp !== otp) return res.status(400).json({ message: "OTP invalid" });
+    if (user.resetOtpExpiry < new Date()) return res.status(400).json({ message: "OTP expired" });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
@@ -299,10 +289,10 @@ router.post("/reset-password", async (req, res) => {
     user.resetOtpExpiry = null;
     await user.save();
 
-    res.json({ message: "Đổi mật khẩu thành công!" });
+    res.json({ message: "Change password succesfully!" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server lỗi" });
+    res.status(500).json({ message: "Server error!" });
   }
 });
 
