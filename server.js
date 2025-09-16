@@ -1,10 +1,10 @@
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const userRoutes = require("./routes/userRoutes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsDoc = require("swagger-jsdoc");
-require("dotenv").config();
 
 const app = express();
 
@@ -18,6 +18,14 @@ app.get("/", (req, res) => res.send("Welcome to Login-Register API 🚀"));
 // Routes
 app.use("/api/users", userRoutes);
 
+// ✅ Detect baseUrl dựa trên NODE_ENV
+let baseUrl;
+if (process.env.NODE_ENV === "production") {
+  baseUrl = process.env.RENDER_PUBLIC_BASE_URL;
+} else {
+  baseUrl = process.env.LOCAL_PUBLIC_BASE_URL;
+}
+
 // Swagger options
 const swaggerOptions = {
   definition: {
@@ -27,16 +35,7 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API for user authentication with JWT",
     },
-    servers: [
-      {
-        url: "http://localhost:5000", 
-        description: "Local server",
-      },
-      {
-        url: process.env.BASE_URL || "https://your-app.onrender.com", 
-        description: "Render deployment",
-      },
-    ],
+    servers: [{ url: baseUrl }],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -47,7 +46,7 @@ const swaggerOptions = {
       },
     },
   },
-  apis: ["./routes/*.js"],
+  apis: ["./routes/*.js"], // 🔑 đọc annotation trong routes
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
@@ -63,5 +62,5 @@ mongoose
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📖 Swagger Docs available at http://localhost:${PORT}/api-docs`);
+  console.log(`📖 Swagger Docs: http://localhost:${PORT}/api-docs`);
 });
