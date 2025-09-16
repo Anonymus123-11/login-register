@@ -17,23 +17,34 @@ async function getTransporter() {
     host: SMTP_HOST,
     port: Number(SMTP_PORT),
     secure: String(SMTP_SECURE || "false").toLowerCase() === "true",
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
   });
 
   return cachedTransporter;
 }
 
 async function sendOtpEmail(to, otpCode) {
-  const transporter = await getTransporter();
-  const from = process.env.SMTP_FROM || "no-reply@example.com";
+  try {
+    const transporter = await getTransporter();
+    const from = process.env.SMTP_FROM || "no-reply@example.com";
 
-  await transporter.sendMail({
-    from,
-    to,
-    subject: "Your OTP Code",
-    text: `Your verification code is ${otpCode}. It expires in 10 minutes.`,
-    html: `<p>Your verification code is <b>${otpCode}</b>. It expires in 10 minutes.</p>`,
-  });
+    const info = await transporter.sendMail({
+      from,
+      to,
+      subject: "Your OTP Code",
+      text: `Your verification code is ${otpCode}. It expires in 10 minutes.`,
+      html: `<p>Your verification code is <b>${otpCode}</b>. It expires in 10 minutes.</p>`,
+    });
+
+    console.log("✅ OTP email sent:", info.messageId);
+    return info;
+  } catch (err) {
+    console.error("❌ Email send error:", err);
+    throw err;
+  }
 }
 
 module.exports = { sendOtpEmail };
