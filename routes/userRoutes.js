@@ -1,11 +1,20 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const otpGenerator = require("otp-generator");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.GMAIL_USER || 'your-email@gmail.com', 
+        pass: process.env.GMAIL_APP_PASSWORD || 'your-gmail-app-password' 
+    }
+});
 /**
  * @swagger
  * tags:
@@ -169,6 +178,62 @@ router.post("/refresh", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/forget-password:
+ *   post:
+ *     summary: Send a password reset OTP to the user's email
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: test@example.com
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error or failed to send email
+ */
+router.post('/forget-password', async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User with this email does not exist.' });
+        }
+
+        const otp = otpGenerator.generate(6, { digits: true, upperCaseAlphabets: false, specialChars: false, lowerCaseAlphabets: false });
+        user.otp = otp;
+        user.otpExpires = Date.now() + 60000; 
+
+        await user.save();
+
+        const mailOptions = {
+            from: process.env.GMAIL_USER || 'your-email@gmail.com',
+            to: user.email,
+            subject: 'Your Password Reset OTP',
+            text: `Your OTP for password reset is: ${otp}. It will expire in 1 minutes.`
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.status(200).json({ message: 'OTP has been sent to your email.' });
+
+    } catch (error) {
+        console.error('Forget Password Error:', error);
+        res.status(500).json({ message: 'Error sending OTP email.' });
+    }
+});
 /**
  * @swagger
  * /api/users/protected:
