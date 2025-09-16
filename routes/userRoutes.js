@@ -309,6 +309,47 @@ router.post("/refresh", async (req, res) => {
 
 /**
  * @swagger
+ * /api/users/me:
+ *   get:
+ *     summary: Get current user's information
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 username:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    // The user ID is in req.user.user.id from the token payload
+    const user = await User.findById(req.user.user.id).select('-password -refreshToken -otp -otpExpires -__v');
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
  * /api/users/protected:
  *   get:
  *     summary: Access protected route (JWT required)
