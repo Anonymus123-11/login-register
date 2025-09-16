@@ -20,6 +20,9 @@ const userSchema = new mongoose.Schema({
     refreshToken: {
         type: String,
     },
+refreshToken: {
+        type: String,
+    },
     isVerified: {
         type: Boolean,
         default: false,
@@ -28,6 +31,8 @@ const userSchema = new mongoose.Schema({
         type: String,
     },
     otpExpiresAt: {
+        type: Date,
+    },
         type: Date,
     }
 });

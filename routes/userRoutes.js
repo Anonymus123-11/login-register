@@ -16,6 +16,7 @@ const transporter = nodemailer.createTransport({
         pass: process.env.GMAIL_APP_PASSWORD || 'your-gmail-app-password' 
     }
 });
+
 /**
  * @swagger
  * tags:
@@ -53,25 +54,28 @@ const transporter = nodemailer.createTransport({
  *       201:
  *         description: User registered. OTP sent to email.
  *       400:
- *         description: Missing fields
+
  *       409:
  *         description: Username or email already exists
  */
 router.post("/register", async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) {
-    return res.status(400).json({ message: "Please provide username, email and password" });
-  }
+return res.status(400).json({ message: "Please provide username, email and password" });
+}
 
-  try {
+try {
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) return res.status(409).json({ message: "Username or email already exists" });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(409).json({ message: "Email already exists" });
 
-    const newUser = new User({ username, email, password: hashedPassword, isVerified: false, otpCode, otpExpiresAt });
+    const hashedPassword = await bcrypt.hash(password, 10);
+const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+const newUser = new User({ username, email, password: hashedPassword, isVerified: false, otpCode, otpExpiresAt });
     await newUser.save();
 
     await sendOtpEmail(email, otpCode);
@@ -218,11 +222,11 @@ router.post("/login", async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
     const accessToken = jwt.sign(
-      { user: { id: user.id } }, process.env.JWT_SECRET, { expiresIn: "1h" }
+      { user: { id: user.id } }, process.env.JWT_SECRET || 'secretkey', { expiresIn: "1h" }
     );
 
     const refreshToken = jwt.sign(
-      { user: { id: user.id } }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" }
+      { user: { id: user.id } }, process.env.JWT_REFRESH_SECRET || 'refreshsecretkey', { expiresIn: "7d" }
     );
 
     user.refreshToken = refreshToken;
@@ -234,6 +238,126 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+/**
+ * @swagger
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: Send a password reset OTP to the user's email
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: test@example.com
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error or failed to send email
+ */
+router.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User with this email does not exist.' });
+        }
+
+        const otp = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false, lowerCaseAlphabets: false });
+        user.otp = otp;
+        user.otpExpires = Date.now() + 300000; // 5 minutes
+
+        await user.save();
+
+        const mailOptions = {
+            from: process.env.GMAIL_USER || 'your-email@gmail.com',
+            to: user.email,
+            subject: 'Your Password Reset OTP',
+            text: `Your OTP for password reset is: ${otp}. It will expire in 5 minutes.`
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.status(200).json({ message: 'OTP has been sent to your email.' });
+
+    } catch (error) {
+        console.error('Forgot Password Error:', error);
+        res.status(500).json({ message: 'Error sending OTP email.' });
+    }
+});
+
+/**
+ * @swagger
+ * /api/users/reset-password:
+ *   post:
+ *     summary: Reset password with OTP
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *               - newPassword
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: test@example.com
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *               newPassword:
+ *                 type: string
+ *                 example: "newStrongPassword123"
+ *     responses:
+ *       200:
+ *         description: Password has been reset successfully
+ *       400:
+ *         description: Invalid OTP or OTP has expired
+ *       404:
+ *         description: User not found
+ */
+router.post('/reset-password', async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    try {
+        const user = await User.findOne({
+            email,
+            otp,
+            otpExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid OTP or OTP has expired.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+
+        await user.save();
+
+        res.status(200).json({ message: 'Password has been reset successfully.' });
+
+    } catch (error) {
+        console.error('Reset Password Error:', error);
+        res.status(500).json({ message: 'Error resetting password.' });
+    }
+});
+
 
 /**
  * @swagger
@@ -266,17 +390,60 @@ router.post("/refresh", async (req, res) => {
     const user = await User.findOne({ refreshToken });
     if (!user) return res.status(403).json({ message: "Invalid refresh token" });
 
-    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
+    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refreshsecretkey', (err, decoded) => {
       if (err) return res.status(403).json({ message: "Invalid refresh token" });
 
       const newAccessToken = jwt.sign(
         { user: { id: user.id } },
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || 'secretkey',
         { expiresIn: "1h" }
       );
 
       res.json({ accessToken: newAccessToken });
     });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+/**
+ * @swagger
+ * /api/users/me:
+ *   get:
+ *     summary: Get current user's information
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 username:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    // The user ID is in req.user.user.id from the token payload
+    const user = await User.findById(req.user.user.id).select('-password -refreshToken -otp -otpExpires -__v');
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
@@ -358,3 +525,13 @@ router.get("/protected", authMiddleware, (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * @swagger
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ */
