@@ -1,6 +1,7 @@
 const express = require("express");
 const authMiddleware = require("../middleware/authMiddleware");
 const userController = require("../controllers/userController");
+const { getUsers, getUserById, updateUser, deleteUser } = require("../controllers/userController");
 
 const router = express.Router();
 
@@ -182,4 +183,93 @@ router.post("/forgot-password", userController.forgotPassword);
  */
 router.post("/reset-password", userController.resetPassword);
 
+
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Get all users
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of users
+ */
+router.get("/", authMiddleware, getUsers);
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Get user by ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User found
+ */
+router.get("/:id", authMiddleware, getUserById);
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Update user by ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User updated
+ */
+router.put("/:id", authMiddleware, updateUser);
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Delete user by ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User deleted
+ */
+router.delete("/:id", authMiddleware, deleteUser);
+
+
 module.exports = router;
+
+
