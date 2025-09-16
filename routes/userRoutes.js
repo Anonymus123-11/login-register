@@ -50,6 +50,67 @@ router.post("/register", userController.register);
 
 /**
  * @swagger
+ * /api/users/verify-email:
+ *   post:
+ *     summary: Verify user's email using OTP after registration
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@example.com
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Missing email or OTP / Invalid OTP / OTP expired
+ *       404:
+ *         description: User not found
+ */
+router.post("/verify-email", userController.verifyEmail);
+
+/**
+ * @swagger
+ * /api/users/resend-otp:
+ *   post:
+ *     summary: Resend OTP for email verification
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@example.com
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *       400:
+ *         description: Missing email / Email already verified
+ *       404:
+ *         description: User not found
+ */
+router.post("/resend-otp", userController.resendVerifyOtp);
+
+
+/**
+ * @swagger
  * /api/users/login:
  *   post:
  *     summary: Login user and get access + refresh token
