@@ -20,10 +20,19 @@ const userSchema = new mongoose.Schema({
     refreshToken: {
         type: String,
     },
-    otp: {
+refreshToken: {
         type: String,
     },
-    otpExpires: {
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    otpCode: {
+        type: String,
+    },
+    otpExpiresAt: {
+        type: Date,
+    },
         type: Date,
     }
 });
