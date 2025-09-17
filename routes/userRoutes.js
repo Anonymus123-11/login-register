@@ -54,8 +54,6 @@ const transporter = nodemailer.createTransport({
  *     responses:
  *       201:
  *         description: User registered. OTP sent to email.
- *       400:
-
  *       409:
  *         description: Username or email already exists
  */
@@ -586,7 +584,9 @@ router.delete("/:id", adminAuth, async (req, res) => {
  *                 type: string
  *               role:
  *                 type: string
- *                 enum: [user, admin]
+ *                 enum:
+ *                   - user
+ *                   - admin
  *               isVerified:
  *                 type: boolean
  *     responses:
