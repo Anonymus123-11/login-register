@@ -1,10 +1,9 @@
-require("dotenv").config(); 
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const userRoutes = require("./routes/userRoutes");
-const swaggerUi = require("swagger-ui-express");
-const swaggerJsDoc = require("swagger-jsdoc");
+const swaggerConfig = require("./swagger");
 
 const app = express();
 
@@ -18,35 +17,8 @@ app.get("/", (req, res) => res.send("Welcome"));
 // Routes
 app.use("/api/users", userRoutes);
 
-// 👉 Chọn base URL theo môi trường
-let baseUrl;
-if (process.env.NODE_ENV === "production") {
-  baseUrl = process.env.RENDER_PUBLIC_BASE_URL;   // Render
-} else {
-  baseUrl = process.env.LOCAL_PUBLIC_BASE_URL;    // Local
-}
-
-// Swagger options
-const swaggerOptions = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "Login-Register API",
-      version: "1.0.0",
-      description: "API for user authentication with JWT",
-    },
-    servers: [{ url: baseUrl }],
-    components: {
-      securitySchemes: {
-        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
-      },
-    },
-  },
-  apis: ["./routes/*.js"], // 🔑 Sử dụng annotation trong routes
-};
-
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+// Swagger setup
+app.use("/api-docs", swaggerConfig.swaggerUi.serve, swaggerConfig.swaggerUi.setup(swaggerConfig.swaggerDocs));
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI)

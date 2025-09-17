@@ -241,14 +241,20 @@ router.post("/forgot-password", async (req, res) => {
     user.resetOTPExpiresAt = Date.now() + 15 * 60 * 1000; // 15 phút
     await user.save();
 
-    await sendEmail(user.email, "Password Reset OTP", `Your OTP is: ${otp}`);
+    await sendEmail(
+      user.email,
+      "Password Reset OTP",
+      `Your OTP is: ${otp}`,
+      `<p>Your OTP is: <strong>${otp}</strong></p>`
+    );
+
     res.json({ message: "OTP sent to email" });
   } catch (err) {
-    console.error("Forgot password error:", err); // log chi tiết
+    console.error("Forgot password error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
-
 });
+
 
 /**
  * @swagger
