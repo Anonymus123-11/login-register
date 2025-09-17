@@ -349,7 +349,7 @@ exports.adminCreateUser = async (req, res) => {
       email,
       password: hashedPassword,
       role: role || "user",
-      isVerified: isVerified || true, // Admin tạo => mặc định verified
+      isVerified: isVerified ?? true, // Admin tạo => mặc định verified
     });
 
     await newUser.save();
