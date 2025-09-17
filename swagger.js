@@ -10,15 +10,23 @@ function setupSwagger(app) {
         version: "1.0.0",
         description: "API for user authentication with JWT",
       },
-      // Dùng URL tương đối, Swagger sẽ tự xác định URL base
-      servers: [{ url: "/" }],
+      servers: [
+        {
+          url: "http://localhost:5000",
+          description: "Local server"
+        },
+        {
+          url: "https://login-register-dtsi.onrender.com",
+          description: "Production server (Render)"
+        }
+      ],
       components: {
         securitySchemes: {
           bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
         },
       },
     },
-    apis: ["./routes/*.js"], // đường dẫn tới file routes
+    apis: ["./routes/*.js"],
   };
 
   const swaggerDocs = swaggerJsDoc(swaggerOptions);
