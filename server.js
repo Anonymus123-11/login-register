@@ -5,9 +5,11 @@ const cors = require("cors");
 const userRoutes = require("./routes/userRoutes");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsDoc = require("swagger-jsdoc");
-
-
 const app = express();
+const path = require("path");
+
+// Cho phép truy cập thư mục uploads qua URL
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Middleware
 app.use(express.json());

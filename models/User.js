@@ -34,7 +34,11 @@ const userSchema = new mongoose.Schema({
     },
     otpExpiresAt: {
         type: Date,
-    }
+    },
+    avatar: {
+        type: String,
+        default: "",
+    },
 });
 
 module.exports = mongoose.model("User", userSchema);

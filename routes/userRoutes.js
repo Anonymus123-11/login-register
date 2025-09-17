@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const adminAuth = require("../middleware/adminAuth");
 const userController = require("../controllers/userController");
-
+const upload = require("../middleware/upload");
 /**
  * @swagger
  * tags:
@@ -267,6 +267,39 @@ router.post('/forget-password', userController.forgetPassword);
 
 /**
  * @swagger
+ * /api/users/profile:
+ *   put:
+ *     summary: Update user profile (info + avatar)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.put("/profile", authMiddleware, upload.single("avatar"), userController.updateProfile);
+
+/**
+ * @swagger
  * /api/users/protected:
  *   get:
  *     summary: Access protected route (JWT required)
@@ -279,6 +312,7 @@ router.post('/forget-password', userController.forgetPassword);
  *       401:
  *         description: Unauthorized (missing or invalid token)
  */
+
 router.get("/protected", authMiddleware, (req, res) => {
   res.json({ message: "This is a protected route", user: req.user });
 });
