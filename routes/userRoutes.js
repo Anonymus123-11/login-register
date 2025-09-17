@@ -6,6 +6,7 @@ const otpGenerator = require("otp-generator");
 const User = require("../models/User");
 const { sendOtpEmail } = require("../utils/mailer");
 const authMiddleware = require("../middleware/authMiddleware");
+const adminAuth = require("../middleware/adminAuth");
 
 const router = express.Router();
 
@@ -67,9 +68,6 @@ return res.status(400).json({ message: "Please provide username, email and passw
 try {
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) return res.status(409).json({ message: "Username or email already exists" });
-
-    existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(409).json({ message: "Email already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -216,23 +214,31 @@ router.post("/login", async (req, res) => {
   try {
     const user = await User.findOne({ username });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
-    if (!user.isVerified) return res.status(403).json({ message: "Please verify your email before logging in" });
+    if (user.role !== 'admin' && !user.isVerified) return res.status(403).json({ message: "Please verify your email before logging in" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
     const accessToken = jwt.sign(
-      { user: { id: user.id } }, process.env.JWT_SECRET || 'secretkey', { expiresIn: "1h" }
+      { user: { id: user.id, role: user.role } }, process.env.JWT_SECRET || 'secretkey', { expiresIn: "1h" }
     );
 
     const refreshToken = jwt.sign(
-      { user: { id: user.id } }, process.env.JWT_REFRESH_SECRET || 'refreshsecretkey', { expiresIn: "7d" }
+      { user: { id: user.id, role: user.role } }, process.env.JWT_REFRESH_SECRET || 'refreshsecretkey', { expiresIn: "7d" }
     );
 
     user.refreshToken = refreshToken;
     await user.save();
 
-    res.json({ accessToken, refreshToken });
+    res.json({ 
+      message: "Login successful",
+      user: {
+        username: user.username,
+        email: user.email
+      },
+      accessToken, 
+      refreshToken 
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
@@ -394,7 +400,7 @@ router.post("/refresh", async (req, res) => {
       if (err) return res.status(403).json({ message: "Invalid refresh token" });
 
       const newAccessToken = jwt.sign(
-        { user: { id: user.id } },
+        { user: { id: user.id, role: user.role } },
         process.env.JWT_SECRET || 'secretkey',
         { expiresIn: "1h" }
       );
@@ -407,48 +413,7 @@ router.post("/refresh", async (req, res) => {
   }
 });
 
-/**
- * @swagger
-/**
- * @swagger
- * /api/users/me:
- *   get:
- *     summary: Get current user's information
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User information retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 _id:
- *                   type: string
- *                 username:
- *                   type: string
- *                 email:
- *                   type: string
- *       404:
- *         description: User not found
- *       500:
- *         description: Server error
- */
-router.get("/me", authMiddleware, async (req, res) => {
-  try {
-    // The user ID is in req.user.user.id from the token payload
-    const user = await User.findById(req.user.user.id).select('-password -refreshToken -otp -otpExpires -__v');
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+
 
 /**
  * @swagger
@@ -522,6 +487,136 @@ router.post('/forget-password', async (req, res) => {
  */
 router.get("/protected", authMiddleware, (req, res) => {
   res.json({ message: "This is a protected route", user: req.user });
+});
+
+/**
+ * @swagger
+ * tags:
+ *   name: Admin
+ *   description: Admin management for user accounts
+ */
+
+// Admin CRUD routes for users
+
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: (Admin) Get all users
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of users
+ *       403:
+ *         description: Admin access required
+ */
+router.get("/", adminAuth, async (req, res) => {
+  try {
+    const users = await User.find().select('-password'); // Exclude passwords from the result
+    res.json(users);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: (Admin) Delete a user
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Admin access required
+ */
+router.delete("/:id", adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    await user.deleteOne();
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: (Admin) Update a user
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The user ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [user, admin]
+ *               isVerified:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Admin access required
+ */
+router.put("/:id", adminAuth, async (req, res) => {
+  try {
+    const { username, email, role, isVerified } = req.body;
+    const updateData = {};
+    if (username) updateData.username = username;
+    if (email) updateData.email = email;
+    if (role) updateData.role = role;
+    if (isVerified !== undefined) updateData.isVerified = isVerified;
+
+    const user = await User.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true }).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ message: "User updated successfully", user });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 module.exports = router;

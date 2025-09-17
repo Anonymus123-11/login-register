@@ -17,10 +17,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    refreshToken: {
+    role: {
         type: String,
+        enum: ['user', 'admin'],
+        default: 'user',
     },
-refreshToken: {
+    refreshToken: {
         type: String,
     },
     isVerified: {
@@ -31,8 +33,6 @@ refreshToken: {
         type: String,
     },
     otpExpiresAt: {
-        type: Date,
-    },
         type: Date,
     }
 });
