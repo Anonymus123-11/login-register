@@ -36,6 +36,11 @@ const userSchema = new mongoose.Schema({
   verifyOtpExpiry: {
     type: Date,
   },
+  role: { 
+    type: String, 
+    enum: ["user", "admin"], 
+    default: "user" 
+  }, 
 });
 
 module.exports = mongoose.model("User", userSchema);

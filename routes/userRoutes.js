@@ -1,7 +1,6 @@
 const express = require("express");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware, adminMiddleware, selfOrAdminMiddleware } = require("../middleware/authMiddleware");
 const userController = require("../controllers/userController");
-const { getUsers, getUserById, updateUser, deleteUser } = require("../controllers/userController");
 
 const router = express.Router();
 
@@ -107,7 +106,6 @@ router.post("/verify-email", userController.verifyEmail);
  *         description: User not found
  */
 router.post("/resend-otp", userController.resendVerifyOtp);
-
 
 /**
  * @swagger
@@ -244,20 +242,21 @@ router.post("/forgot-password", userController.forgotPassword);
  */
 router.post("/reset-password", userController.resetPassword);
 
-
 /**
  * @swagger
  * /api/users:
  *   get:
- *     summary: Get all users
+ *     summary: Get all users (admin only)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of users
+ *       403:
+ *         description: Admin access required
  */
-router.get("/", authMiddleware, getUsers);
+router.get("/", authMiddleware, adminMiddleware, userController.getUsers);
 
 /**
  * @swagger
@@ -278,18 +277,17 @@ router.get("/", authMiddleware, getUsers);
  *       200:
  *         description: User found
  *       401:
- *         description: Unauthorized (if token invalid or missing)
+ *         description: Unauthorized
  *       404:
  *         description: User not found
  */
-router.get("/:id", authMiddleware, getUserById);
-
+router.get("/:id", authMiddleware, userController.getUserById);
 
 /**
  * @swagger
  * /api/users/{id}:
  *   put:
- *     summary: Update user by ID
+ *     summary: Update user (self or admin)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -313,14 +311,16 @@ router.get("/:id", authMiddleware, getUserById);
  *     responses:
  *       200:
  *         description: User updated
+ *       403:
+ *         description: Access denied
  */
-router.put("/:id", authMiddleware, updateUser);
+router.put("/:id", authMiddleware, selfOrAdminMiddleware, userController.updateUser);
 
 /**
  * @swagger
  * /api/users/{id}:
  *   delete:
- *     summary: Delete user by ID
+ *     summary: Delete user (self or admin)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -333,10 +333,65 @@ router.put("/:id", authMiddleware, updateUser);
  *     responses:
  *       200:
  *         description: User deleted
+ *       403:
+ *         description: Access denied
  */
-router.delete("/:id", authMiddleware, deleteUser);
+router.delete("/:id", authMiddleware, selfOrAdminMiddleware, userController.deleteUser);
+
+/**
+ * @swagger
+ * /api/users/make-admin/{id}:
+ *   patch:
+ *     summary: Promote a user to admin (admin only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User promoted successfully
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User not found
+ */
+router.patch("/make-admin/:id", userController.promoteToAdmin);
+
+/**
+ * @swagger
+ * /api/users/generate-token/{id}:
+ *   get:
+ *     summary: Generate JWT for a user (testing only)
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: 68c96e2896a0c4877e8620d4
+ *     responses:
+ *       200:
+ *         description: Returns JWT token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/generate-token/:id", userController.generateToken);
 
 
 module.exports = router;
-
-

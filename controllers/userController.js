@@ -197,7 +197,6 @@ exports.getUserById = async (req, res) => {
   try {
     let userId = req.params.id;
 
-    // Nếu truyền 'me', dùng id từ token
     if (userId === "me") {
       if (!req.user || !req.user.id) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -243,5 +242,39 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.promoteToAdmin = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.role = "admin";
+    await user.save();
+
+    res.json({ message: "User promoted to admin successfully", user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.generateToken = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const token = jwt.sign(
+      { user: { id: user._id, role: user.role } },
+      process.env.JWT_SECRET || "secretkey",
+      { expiresIn: "1h" }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 
