@@ -14,7 +14,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ========== User Controller ==========
 
 // Đăng ký
 exports.register = async (req, res) => {
@@ -247,7 +246,7 @@ exports.refreshToken = async (req, res) => {
   }
 };
 
-// Forget password (phiên bản 2, OTP 1 phút)
+// Forget password 
 exports.forgetPassword = async (req, res) => {
   const { email } = req.body;
   try {
