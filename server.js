@@ -14,7 +14,7 @@ app.use(express.json());
 app.use(cors());
 
 // Default route
-app.get("/", (req, res) => res.send("Welcome"));
+app.get("/", (req, res) => res.send("API đang chạy! Thêm /api-docs để mở Swagger"));
 
 // Routes
 app.use("/api/users", userRoutes);
