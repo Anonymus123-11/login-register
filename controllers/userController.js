@@ -278,7 +278,7 @@ exports.generateToken = async (req, res) => {
 
 exports.updateUserSelf = async (req, res) => {
   try {
-    const { username, email } = req.body;
+    const { username, email, oldPassword, newPassword } = req.body;
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -286,9 +286,31 @@ exports.updateUserSelf = async (req, res) => {
     if (username) user.username = username;
     if (email) user.email = email;
 
-    await user.save();
+    if (newPassword) {
+      if (!oldPassword) {
+        return res.status(400).json({ message: "Old password is required" });
+      }
 
-    res.json({ message: "Profile updated successfully", user });
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: "Old password is incorrect" });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+    }
+
+    await user.save();
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

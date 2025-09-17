@@ -399,7 +399,7 @@ router.get("/generate-token/:id", userController.generateToken);
  * @swagger
  * /api/users/me/update:
  *   put:
- *     summary: Update current user's profile (self only, admin not allowed)
+ *     summary: Update current user's profile (self only)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -416,6 +416,12 @@ router.get("/generate-token/:id", userController.generateToken);
  *               email:
  *                 type: string
  *                 example: newemail@example.com
+ *               oldPassword:
+ *                 type: string
+ *                 example: oldpass123
+ *               newPassword:
+ *                 type: string
+ *                 example: newpass456
  *     responses:
  *       200:
  *         description: Profile updated successfully
@@ -429,14 +435,15 @@ router.get("/generate-token/:id", userController.generateToken);
  *                   example: Profile updated successfully
  *                 user:
  *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Bad Request (invalid old password or missing fields)
  *       401:
  *         description: Unauthorized (missing/invalid token)
- *       403:
- *         description: Admins cannot update profile via this route
  *       404:
  *         description: User not found
  */
 router.put("/me/update", authMiddleware, userController.updateUserSelf);
+
 
 /**
  * @swagger
