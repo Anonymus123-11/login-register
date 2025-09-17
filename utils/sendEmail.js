@@ -6,8 +6,8 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
  * Sends an OTP email
  * @param {string} to - recipient email
  * @param {string} otp - OTP code
- * @param {string} [subject="Mã OTP"] - email subject (optional)
- * @param {string} [message] - custom message (optional)
+ * @param {string} [subject="Mã OTP"] 
+ * @param {string} [message] 
  */
 const sendOtpEmail = async (to, otp, subject = "Mã OTP", message) => {
   const msg = {

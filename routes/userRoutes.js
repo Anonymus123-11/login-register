@@ -263,7 +263,7 @@ router.get("/", authMiddleware, getUsers);
  * @swagger
  * /api/users/{id}:
  *   get:
- *     summary: Get user by ID
+ *     summary: Get user by ID or current authorized user if id='me'
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -273,11 +273,17 @@ router.get("/", authMiddleware, getUsers);
  *         required: true
  *         schema:
  *           type: string
+ *           example: me
  *     responses:
  *       200:
  *         description: User found
+ *       401:
+ *         description: Unauthorized (if token invalid or missing)
+ *       404:
+ *         description: User not found
  */
 router.get("/:id", authMiddleware, getUserById);
+
 
 /**
  * @swagger
