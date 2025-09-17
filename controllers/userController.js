@@ -276,5 +276,47 @@ exports.generateToken = async (req, res) => {
   }
 };
 
+exports.updateUserSelf = async (req, res) => {
+  try {
+    const { username, email } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (username) user.username = username;
+    if (email) user.email = email;
+
+    await user.save();
+
+    res.json({ message: "Profile updated successfully", user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+exports.uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    const userId = req.user.id;
+    const filePath = `/uploads/avatars/${req.file.filename}`; // đường dẫn để trả về client
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { avatar: filePath },
+      { new: true }
+    ).select("-password -refreshToken -resetOtp -resetOtpExpiry");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ message: "Avatar uploaded successfully", avatar: filePath, user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 

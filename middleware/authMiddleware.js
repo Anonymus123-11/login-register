@@ -34,4 +34,27 @@ const selfOrAdminMiddleware = (req, res, next) => {
   return res.status(403).json({ message: "Access denied" });
 };
 
-module.exports = { authMiddleware, adminMiddleware, selfOrAdminMiddleware };
+const multer = require("multer");
+
+// Cấu hình storage cho avatar
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/avatars/"); // folder lưu avatar
+  },
+  filename: function (req, file, cb) {
+    const ext = file.mimetype.split("/")[1]; // lấy extension
+    cb(null, req.user.id + "." + ext); // đặt tên file theo userId
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 1024 * 1024 * 2 }, // giới hạn 2MB
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files are allowed!"));
+  },
+});
+
+module.exports = { authMiddleware, adminMiddleware, selfOrAdminMiddleware, upload };
+

@@ -1,6 +1,8 @@
 const express = require("express");
 const { authMiddleware, adminMiddleware, selfOrAdminMiddleware } = require("../middleware/authMiddleware");
 const userController = require("../controllers/userController");
+const { upload } = require("../middleware/authMiddleware");
+
 
 const router = express.Router();
 
@@ -393,5 +395,75 @@ router.patch("/make-admin/:id", userController.promoteToAdmin);
  */
 router.get("/generate-token/:id", userController.generateToken);
 
+/**
+ * @swagger
+ * /api/users/me/update:
+ *   put:
+ *     summary: Update current user's profile (self only, admin not allowed)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: newusername
+ *               email:
+ *                 type: string
+ *                 example: newemail@example.com
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Profile updated successfully
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized (missing/invalid token)
+ *       403:
+ *         description: Admins cannot update profile via this route
+ *       404:
+ *         description: User not found
+ */
+router.put("/me/update", authMiddleware, userController.updateUserSelf);
+
+/**
+ * @swagger
+ * /api/users/upload-avatar:
+ *   post:
+ *     summary: Upload avatar for current user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Avatar uploaded successfully
+ *       400:
+ *         description: No file uploaded
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/upload-avatar", authMiddleware, upload.single("avatar"), userController.uploadAvatar);
 
 module.exports = router;
