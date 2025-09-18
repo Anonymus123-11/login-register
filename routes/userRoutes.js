@@ -7,6 +7,8 @@ const User = require("../models/User");
 const { sendOtpEmail } = require("../utils/mailer");
 const authMiddleware = require("../middleware/authMiddleware");
 const adminAuth = require("../middleware/adminAuth");
+const multer = require("multer");
+const path = require("path");
 
 const router = express.Router();
 
@@ -278,19 +280,18 @@ router.post('/forgot-password', async (req, res) => {
         }
 
         const otp = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false, lowerCaseAlphabets: false });
-        user.otp = otp;
-        user.otpExpires = Date.now() + 300000; // 5 minutes
+        user.otpCode = otp;
+        user.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
         await user.save();
 
-        const mailOptions = {
+        // Using the existing transporter instance
+        await transporter.sendMail({
             from: process.env.GMAIL_USER || 'your-email@gmail.com',
             to: user.email,
             subject: 'Your Password Reset OTP',
             text: `Your OTP for password reset is: ${otp}. It will expire in 5 minutes.`
-        };
-
-        await transporter.sendMail(mailOptions);
+        });
 
         res.status(200).json({ message: 'OTP has been sent to your email.' });
 
@@ -339,8 +340,8 @@ router.post('/reset-password', async (req, res) => {
     try {
         const user = await User.findOne({
             email,
-            otp,
-            otpExpires: { $gt: Date.now() }
+            otpCode: otp,
+            otpExpiresAt: { $gt: Date.now() }
         });
 
         if (!user) {
@@ -349,8 +350,8 @@ router.post('/reset-password', async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
-        user.otp = undefined;
-        user.otpExpires = undefined;
+        user.otpCode = undefined;
+        user.otpExpiresAt = undefined;
 
         await user.save();
 
@@ -410,65 +411,6 @@ router.post("/refresh", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
-
-
-/**
- * @swagger
- * /api/users/forget-password:
- *   post:
- *     summary: Send a password reset OTP to the user's email
- *     tags: [Users]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 example: test@example.com
- *     responses:
- *       200:
- *         description: OTP sent successfully
- *       404:
- *         description: User not found
- *       500:
- *         description: Server error or failed to send email
- */
-router.post('/forget-password', async (req, res) => {
-    const { email } = req.body;
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: 'User with this email does not exist.' });
-        }
-
-        const otp = otpGenerator.generate(6, { digits: true, upperCaseAlphabets: false, specialChars: false, lowerCaseAlphabets: false });
-        user.otp = otp;
-        user.otpExpires = Date.now() + 60000; 
-
-        await user.save();
-
-        const mailOptions = {
-            from: process.env.GMAIL_USER || 'your-email@gmail.com',
-            to: user.email,
-            subject: 'Your Password Reset OTP',
-            text: `Your OTP for password reset is: ${otp}. It will expire in 1 minutes.`
-        };
-
-        await transporter.sendMail(mailOptions);
-
-        res.status(200).json({ message: 'OTP has been sent to your email.' });
-
-    } catch (error) {
-        console.error('Forget Password Error:', error);
-        res.status(500).json({ message: 'Error sending OTP email.' });
-    }
-});
 /**
  * @swagger
  * /api/users/protected:
@@ -486,6 +428,150 @@ router.post('/forget-password', async (req, res) => {
 router.get("/protected", authMiddleware, (req, res) => {
   res.json({ message: "This is a protected route", user: req.user });
 });
+
+// Multer config for avatar upload
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 1000000 }, // 1MB limit
+    fileFilter: function (req, file, cb) {
+        checkFileType(file, cb);
+    }
+}).single('avatar');
+
+function checkFileType(file, cb) {
+    const filetypes = /jpeg|jpg|png|gif/;
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = filetypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+        return cb(null, true);
+    } else {
+        cb('Error: Images Only!');
+    }
+}
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Username already exists or invalid data
+ *       404:
+ *         description: User not found
+ */
+router.put("/profile", authMiddleware, async (req, res) => {
+    const { username } = req.body;
+    const userId = req.user.user.id;
+
+    if (!username) {
+        return res.status(400).json({ message: "Username is required" });
+    }
+
+    try {
+        const existingUser = await User.findOne({ username: username });
+        if (existingUser && existingUser._id.toString() !== userId) {
+            return res.status(400).json({ message: "Username already taken" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.username = username;
+        await user.save();
+
+        res.json({ message: "Profile updated successfully", user: { id: user.id, username: user.username, email: user.email, role: user.role, avatarUrl: user.avatarUrl } });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+
+/**
+ * @swagger
+ * /api/users/avatar:
+ *   post:
+ *     summary: Upload user avatar
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Avatar uploaded successfully
+ *       400:
+ *         description: No file uploaded or invalid file type
+ *       404:
+ *         description: User not found
+ */
+router.post("/avatar", authMiddleware, (req, res) => {
+    upload(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ message: err });
+        }
+        if (req.file == undefined) {
+            return res.status(400).json({ message: "Error: No File Selected!" });
+        }
+
+        try {
+            const userId = req.user.user.id;
+            const user = await User.findById(userId);
+
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            // The path should be accessible by the client
+            user.avatarUrl = `/uploads/${req.file.filename}`;
+            await user.save();
+
+            res.json({
+                message: "Avatar uploaded successfully",
+                avatarUrl: user.avatarUrl
+            });
+        } catch (err) {
+            console.error(err.message);
+            res.status(500).json({ message: "Server error" });
+        }
+    });
+});
+
 
 /**
  * @swagger
