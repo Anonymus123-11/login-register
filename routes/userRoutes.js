@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const adminAuth = require("../middleware/adminAuth");
+const upload = require("../middleware/upload");
 const userController = require("../controllers/userController");
 
 /**
@@ -448,3 +449,33 @@ router.put("/:id", adminAuth, userController.updateUser);
  */
 
 module.exports = router;
+/**
+ * @swagger
+ * /api/users/me:
+ *   put:
+ *     summary: Update own profile and avatar
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile updated
+ *       401:
+ *         description: Unauthorized
+ */
+router.put("/me", authMiddleware, upload.single("avatar"), userController.updateMe);

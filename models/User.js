@@ -29,11 +29,22 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    // OTP for registration verification
     otpCode: {
         type: String,
     },
     otpExpiresAt: {
         type: Date,
+    },
+    // OTP for password reset flow
+    otp: {
+        type: String,
+    },
+    otpExpires: {
+        type: Date,
+    },
+    avatarUrl: {
+        type: String,
     }
 });
 

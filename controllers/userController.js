@@ -1,18 +1,11 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 const otpGenerator = require("otp-generator");
 const User = require("../models/User");
 const { sendOtpEmail } = require("../utils/mailer");
-
-// Mail transporter
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER || "your-email@gmail.com",
-    pass: process.env.GMAIL_APP_PASSWORD || "your-gmail-app-password",
-  },
-});
+const fs = require("fs");
+const path = require("path");
+const Joi = require("joi");
 
 
 // Đăng ký
@@ -173,14 +166,7 @@ exports.forgotPassword = async (req, res) => {
     user.otpExpires = Date.now() + 300000; // 5 phút
     await user.save();
 
-    const mailOptions = {
-      from: process.env.GMAIL_USER || "your-email@gmail.com",
-      to: user.email,
-      subject: "Your Password Reset OTP",
-      text: `Your OTP for password reset is: ${otp}. It will expire in 5 minutes.`,
-    };
-
-    await transporter.sendMail(mailOptions);
+    await sendOtpEmail(user.email, otp);
 
     res.status(200).json({ message: "OTP has been sent to your email." });
   } catch (err) {
@@ -266,14 +252,7 @@ exports.forgetPassword = async (req, res) => {
     user.otpExpires = Date.now() + 60000; // 1 phút
     await user.save();
 
-    const mailOptions = {
-      from: process.env.GMAIL_USER || "your-email@gmail.com",
-      to: user.email,
-      subject: "Your Password Reset OTP",
-      text: `Your OTP for password reset is: ${otp}. It will expire in 1 minute.`,
-    };
-
-    await transporter.sendMail(mailOptions);
+    await sendOtpEmail(user.email, otp);
     res.status(200).json({ message: "OTP has been sent to your email." });
   } catch (err) {
     console.error("Forget Password Error:", err);
@@ -371,6 +350,57 @@ exports.getUserById = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json(user);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// User: Update own profile and avatar
+exports.updateMe = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { username, password } = req.body;
+
+    const schema = Joi.object({
+      username: Joi.string().min(3).max(50).optional(),
+      password: Joi.string().min(6).max(128).optional(),
+      email: Joi.forbidden(),
+      role: Joi.forbidden(),
+      isVerified: Joi.forbidden(),
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) return res.status(400).json({ message: error.details[0].message });
+
+    const updateData = {};
+    if (username) updateData.username = username;
+    if (password) updateData.password = await bcrypt.hash(password, 10);
+
+    if (req.file) {
+      const filename = req.file.filename;
+      updateData.avatarUrl = `/uploads/${filename}`;
+    }
+
+    // Find current user to handle avatar replacement
+    const current = await User.findById(userId);
+    if (!current) return res.status(404).json({ message: "User not found" });
+
+    // Delete old avatar file if replacing
+    if (req.file && current.avatarUrl) {
+      const oldPath = path.join(__dirname, "..", current.avatarUrl.replace(/^\//, ""));
+      fs.unlink(oldPath, () => {});
+    }
+
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true }
+    ).select("-password");
+
+    if (!updated) return res.status(404).json({ message: "User not found" });
+
+    res.json({ message: "Profile updated", user: updated });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: "Server error" });
